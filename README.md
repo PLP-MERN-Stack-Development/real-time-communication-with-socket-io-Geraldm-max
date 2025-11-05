@@ -1,77 +1,199 @@
-# Real-Time Chat Application with Socket.io
+Real-Time Chat Application with Socket.io
+📖 Project Overview
 
-This assignment focuses on building a real-time chat application using Socket.io, implementing bidirectional communication between clients and server.
+This project is a real-time chat application built using the MERN stack and Socket.io. It demonstrates bidirectional, event-based communication between clients and the server, allowing users to chat instantly, see online/offline status, and get live notifications.
 
-## Assignment Overview
+🧠 Core Technologies
 
-You will build a chat application with the following features:
-1. Real-time messaging using Socket.io
-2. User authentication and presence
-3. Multiple chat rooms or private messaging
-4. Real-time notifications
-5. Advanced features like typing indicators and read receipts
+MongoDB + Mongoose – for storing users and messages
 
-## Project Structure
+Express.js – backend web framework
 
-```
+React.js (Vite) – frontend interface
+
+Socket.io – real-time, bidirectional communication
+
+JWT & bcryptjs – for authentication (extendable)
+
+dotenv – for environment variable management
+
+⚙️ Setup Instructions
+🧩 Prerequisites
+
+Node.js v18+
+
+npm or yarn
+
+MongoDB running locally or via MongoDB Atlas
+
+🖥️ Server Setup
+cd server
+npm init -y
+npm install express socket.io mongoose jsonwebtoken bcryptjs dotenv
+# For development
+npm install -D nodemon
+
+
+Start the server:
+
+npm run dev
+
+
+Example .env file:
+
+PORT=5000
+MONGO_URI=mongodb://localhost:27017/socketio-chat
+CLIENT_ORIGIN=http://localhost:5173
+
+💻 Client Setup
+cd client
+npm create vite@latest
+npm install socket.io-client axios
+npm run dev
+
+
+Set up .env in client:
+
+VITE_SERVER_URL=http://localhost:5000
+
+🧱 Folder Structure
 socketio-chat/
-├── client/                 # React front-end
-│   ├── public/             # Static files
-│   ├── src/                # React source code
-│   │   ├── components/     # UI components
-│   │   ├── context/        # React context providers
-│   │   ├── hooks/          # Custom React hooks
-│   │   ├── pages/          # Page components
-│   │   ├── socket/         # Socket.io client setup
-│   │   └── App.jsx         # Main application component
-│   └── package.json        # Client dependencies
-├── server/                 # Node.js back-end
-│   ├── config/             # Configuration files
-│   ├── controllers/        # Socket event handlers
-│   ├── models/             # Data models
-│   ├── socket/             # Socket.io server setup
-│   ├── utils/              # Utility functions
-│   ├── server.js           # Main server file
-│   └── package.json        # Server dependencies
-└── README.md               # Project documentation
-```
+├── client/
+│   ├── src/
+│   │   ├── hooks/
+│   │   │   └── useSocket.js
+│   │   ├── socket/
+│   │   │   └── socket.js
+│   │   └── App.jsx
+│   └── package.json
+├── server/
+│   ├── server.js
+│  
+│   └── package.json
+└── README.md
 
-## Getting Started
+💬 Features Implemented
+✅ Core Chat Functionality
 
-1. Accept the GitHub Classroom assignment invitation
-2. Clone your personal repository that was created by GitHub Classroom
-3. Follow the setup instructions in the `Week5-Assignment.md` file
-4. Complete the tasks outlined in the assignment
+Real-time global chat using Socket.io
 
-## Files Included
+Displays sender name and timestamp
 
-- `Week5-Assignment.md`: Detailed assignment instructions
-- Starter code for both client and server:
-  - Basic project structure
-  - Socket.io configuration templates
-  - Sample components for the chat interface
+Online/offline presence broadcast
 
-## Requirements
+Typing indicator events
 
-- Node.js (v18 or higher)
-- npm or yarn
-- Modern web browser
-- Basic understanding of React and Express
+Persistent message storage in MongoDB
 
-## Submission
+💎 Advanced Features
 
-Your work will be automatically submitted when you push to your GitHub Classroom repository. Make sure to:
+Private messaging (room-based via socket.join(room))
 
-1. Complete both the client and server portions of the application
-2. Implement the core chat functionality
-3. Add at least 3 advanced features
-4. Document your setup process and features in the README.md
-5. Include screenshots or GIFs of your working application
-6. Optional: Deploy your application and add the URLs to your README.md
+Read receipts via read-message event
 
-## Resources
+User presence tracking
 
-- [Socket.io Documentation](https://socket.io/docs/v4/)
-- [React Documentation](https://react.dev/)
-- [Express.js Documentation](https://expressjs.com/)
-- [Building a Chat Application with Socket.io](https://socket.io/get-started/chat) 
+Typing indicator broadcast to other users
+
+Extensible authentication (JWT-ready)
+
+🔔 Real-Time Notifications
+
+When a new user joins or leaves
+
+When a message is sent
+
+“User is typing” alert
+
+🧪 How It Works
+🔄 Connection Flow
+
+User connects → sends join event with username
+
+Server updates MongoDB and broadcasts presence
+
+Client sends messages via chat-message
+
+Server stores and emits message to all connected clients
+
+Typing and read events update UI in real time
+
+🧰 Key Code Snippets
+Server (server/server.js)
+io.on('connection', (socket) => {
+  socket.on('join', async ({ username }) => {
+    socket.username = username;
+    await User.findOneAndUpdate({ username }, { online: true, socketId: socket.id }, { upsert: true });
+    io.emit('presence', { username, online: true });
+  });
+
+  socket.on('chat-message', async ({ room = 'global', text, from, to }) => {
+    const msg = await Message.create({ room, text, from, to });
+    io.to(room).emit('chat-message', msg);
+  });
+
+  socket.on('typing', ({ room, username }) => {
+    socket.to(room).emit('typing', { username });
+  });
+
+  socket.on('disconnect', async () => {
+    if (socket.username) {
+      await User.findOneAndUpdate({ username: socket.username }, { online: false, socketId: null });
+      io.emit('presence', { username: socket.username, online: false });
+    }
+  });
+});
+
+Client (client/src/App.jsx)
+import React, { useState } from 'react';
+import useSocket from './hooks/useSocket';
+
+export default function App() {
+  const [username, setUsername] = useState('');
+  const [messages, setMessages] = useState([]);
+  const socket = useSocket({
+    username,
+    onMessage: (msg) => setMessages((m) => [...m, msg]),
+    onPresence: (p) => console.log('presence', p),
+    onTyping: (t) => console.log('typing', t),
+  });
+
+  const send = () => {
+    socket.emit('chat-message', { room: 'global', text: 'Hello!', from: username });
+  };
+
+  return (
+    <div>
+      {!username ? (
+        <input placeholder="Enter username" onBlur={(e) => setUsername(e.target.value)} />
+      ) : (
+        <>
+          <button onClick={send}>Send Hello</button>
+          <ul>{messages.map((m) => <li key={m._id || m.createdAt}>{m.from}: {m.text}</li>)}</ul>
+        </>
+      )}
+    </div>
+  );
+}
+
+📸 Screenshots / GIFs
+
+(Add yours here once running — examples)
+
+🖼️ Chat interface with real-time messages
+
+🟢 User joins and presence updates
+
+⌨️ Typing indicator in action
+
+🚀 Deployment
+
+Backend → Render, Railway, or Heroku
+
+Frontend → Vercel, Netlify, or GitHub Pages
+
+Update CORS and .env URLs accordingly.
+
+🧾 License
+
+This project is developed as part of the Week 5: Real-Time Communication with Socket.io assignment under the PLP Web Technologies module.
